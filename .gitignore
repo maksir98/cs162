@@ -48,5 +48,8 @@ hw1/lwords
 hw1/pwords
 hw1/fwords
 
+# HW2
+hw2/shell
+
 # HW5
 hw5/**/build
