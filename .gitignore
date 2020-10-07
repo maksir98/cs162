@@ -31,6 +31,8 @@
 .dSYM
 .DS_Store
 *.swp
+.vscode
+.idea
 
 # HW0
 hw0/limits
@@ -50,6 +52,9 @@ hw1/fwords
 
 # HW2
 hw2/shell
+
+# HW3
+hw3/.ipynb_checkpoints
 
 # HW5
 hw5/**/build
