@@ -60,4 +60,10 @@ hw3/.ipynb_checkpoints
 hw4/mm_test
 
 # HW5
+hw5/httpserver
+hw5/forkserver
+hw5/threadserver
+hw5/poolserver
+
+# HW5
 hw5/**/build
