@@ -1,0 +1,38 @@
+· What memory address does argv store?
+0x7fffffffe4f8
+
+· Describe what's located at that memory address. (What does argv point to?)
+The argv point to a pointer to a string  "/home/vagrant/code/personal/hw0/map".
+
+· What is the memory address of the recur function?
+0x5555555546cd
+
+· What values are in all the registers?
+┌──Register group: general──────────────────────────────────────────────────────────────┐
+│rax           0x2      2                                                              │
+│rbx           0x0      0                                                              │
+│rcx            0x0      0                                                              │
+│rdx           0x0      0                                                              │
+│rsi          	  0x555555756340   93824994337600                      │
+│rdi            0x2      2                                                              │
+│rbp            0x7fffffffe3d0   0x7fffffffe3d0                                         │
+│rsp            0x7fffffffe3b0   0x7fffffffe3b0                                         │
+│r8             0x0      0                                                              │
+│r9             0x0      0                                                              │
+│r10            0x555555756010   93824994336784                                         │
+│r11            0x246    582                                                            │
+│r12            0x555555554580   93824992232832                                         │
+│r13            0x7fffffffe4f0   140737488348400                                        │
+│r14            0x0      0                                                              │
+│r15            0x0      0                                                              │
+│rip            0x555555554702   0x555555554702 <recur+53>                              │
+│eflags         0x202    [ IF ]                                                         │
+│cs             0x33     51                                                             │
+│ss             0x2b     43                                                             │
+│ds             0x0      0                                                              │
+│es             0x0      0
+
+· Which instructions correspond to the return 0 in C?
+0x555555554709 <recur+60>               mov    $0x0,%eax                           
+0x55555555470e <recur+65>               leaveq                                     
+0x55555555470f <recur+66>               retq    

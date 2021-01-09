@@ -20,6 +20,7 @@ Functional methods take the head of a list as first arg.
 Mutators take a reference to a list as first arg.
 */
 
+#include <string.h>
 #include "word_count.h"
 
 /* Basic utililties */
@@ -30,22 +31,76 @@ char *new_string(char *str) {
 
 void init_words(WordCount **wclist) {
   /* Initialize word count.  */
-  *wclist = NULL;
+  WordCount* initList = (WordCount*) malloc(sizeof(WordCount));
+  initList->word = NULL;
+  initList->next = NULL;
+  initList->count = 0;
+
+  *wclist = initList;
 }
 
 size_t len_words(WordCount *wchead) {
     size_t len = 0;
+
+    while (wchead)
+    {
+      len++;
+      wchead = wchead->next;
+    }  
+    
     return len;
 }
 
 WordCount *find_word(WordCount *wchead, char *word) {
   /* Return count for word, if it exists */
   WordCount *wc = NULL;
+
+  while (wchead != NULL)
+  {
+    if (!strcmp(wchead->word, word))
+    {
+      wc = wchead;
+      break;
+    }
+    
+    wchead = wchead->next;
+  }
+  
   return wc;
 }
 
 void add_word(WordCount **wclist, char *word) {
   /* If word is present in word_counts list, increment the count, otw insert with count 1. */
+  bool is_exist = false;
+  WordCount* current_word = *wclist;
+  
+  while (1)
+  {
+    if (!strcmp(current_word->word, word))
+    {
+      current_word->count ++;
+      is_exist = true;
+      break;
+    }
+    
+    if (!current_word->next)
+    {
+      break;
+    }
+
+    current_word = current_word->next;
+  }
+  
+  if (!is_exist)
+  {
+    WordCount* new_word = (WordCount*) malloc(sizeof(WordCount));
+    new_word->word = word;
+    new_word->count = 1;
+    new_word->next = NULL;
+    current_word->next = new_word;
+  }
+  
+  
 }
 
 void fprint_words(WordCount *wchead, FILE *ofile) {
