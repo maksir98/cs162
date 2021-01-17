@@ -37,33 +37,33 @@
  * representations.
  */
 
-#ifdef PINTOS_LIST
-#include "list.h"
-typedef struct word_count {
-  char *word;
-  int count;
-  struct list_elem elem;
-} word_count_t;
+#ifdef PINTOS_LIST ////////////////////////编译时改为ifdef
+  #include "list.h"
+  typedef struct word_count {
+    char *word;
+    int count;
+    struct list_elem elem;
+  } word_count_t;
 
-#ifdef PTHREADS
-#include <pthread.h>
-typedef struct word_count_list {
-  struct list lst;
-  pthread_mutex_t lock;
-} word_count_list_t;
-#else /* PTHREADS */
-typedef struct list word_count_list_t;
-#endif /* PTHREADS */
+  #ifdef PTHREADS//////////////////////////编译时改为ifdef
+    #include <pthread.h>
+    typedef struct word_count_list {
+      struct list lst;
+      pthread_mutex_t lock;
+    } word_count_list_t;
+  #else /* PTHREADS */
+    typedef struct list word_count_list_t;
+  #endif /* PTHREADS */
 
 #else /* PINTOS_LIST */
 
-typedef struct word_count {
-  char *word;
-  int count;
-  struct word_count *next;
-} word_count_t;
+  typedef struct word_count {
+    char *word;
+    int count;
+    struct word_count *next;
+  } word_count_t;
 
-typedef word_count_t *word_count_list_t;
+  typedef word_count_t *word_count_list_t;
 #endif /* PINTOS_LIST */
 
 /* Initialize a word count list. */

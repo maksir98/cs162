@@ -1,0 +1,18 @@
+1. Is the programs output the same each time it is run? Why or why not?
+No. Because it have 4 threads, each threads run concurrently.
+
+2. Based on the program's output, do multiple threads share the same stack?
+No.
+
+3. Based on the program's output, do multiple threads have separate copies of global variables?
+No.
+
+4. Based on the program's output, what is the value of void *threadid? How does this relate to
+the variable's type (void *)?
+The value is 0, 1, 2, 3.
+
+5. Using the first command line argument, create a large number of threads in pthread. Do all
+threads run before the program exits? Why or why not?
+Not all threads run before the program exits. Because "Any of the threads in the process calls exit(3), 
+or the main thread performs a return from main(). This causes the termination of all threads in the process."
+[pthread_create(3) - Linux man page](https://linux.die.net/man/3/pthread_create)

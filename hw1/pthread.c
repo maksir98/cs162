@@ -8,18 +8,19 @@
 #include <pthread.h>
 #include <string.h>
 
-#define NUM_THREADS     4
+#define NUM_THREADS     400
 int common = 162;
 char *somethingshared;
 
 void *threadfun(void *threadid) {
   long tid;
   tid = (long)threadid;
-  printf("Thread #%lx stack: %lx common: %lx (%d) tptr: %lx\n", tid,
+  printf("Thread #%lx stack: %lx common: %lx (%d) tptr: %lx\n", 
+    tid,
 	 (unsigned long) &tid,
 	 (unsigned long) &common, common++,
 	 (unsigned long) threadid);
-  printf("%lx: %s\n", (unsigned long) somethingshared, somethingshared+tid);
+  printf("%lx: %s\n", (unsigned long) somethingshared, somethingshared);
   pthread_exit(NULL);
 }
 

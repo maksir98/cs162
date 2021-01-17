@@ -32,6 +32,15 @@
 #include "word_count.h"
 #include "word_helpers.h"
 
+word_count_list_t* wc;
+
+void *p_count_words(void *file_name) {
+  FILE *infile = fopen((char *)file_name, "r");
+  printf("%s is processing.\n", (char *)file_name);
+  count_words(wc, infile); 
+  pthread_exit(NULL);
+}
+
 /*
  * main - handle command line, spawning one thread per file.
  */
@@ -45,10 +54,43 @@ int main(int argc, char *argv[]) {
     count_words(&word_counts, stdin);
   } else {
     /* TODO */
+    int rc;
+    int nthreads = argc - 1;
+    pthread_t threads[nthreads];
+    wc = &word_counts;
+    
+    for (int i = 0; i < nthreads; i++)
+    {
+      rc = pthread_create(&threads[i], NULL, p_count_words, (void *)argv[i + 1]);
+      if (rc) {
+        printf("ERROR; return code from pthread_create() is %d\n", rc);
+        exit(-1);
+      }
+    }
+    
+    for (int i = 0; i < nthreads; i++)
+    {
+      rc = pthread_join(threads[i], NULL);
+      if (rc)
+      {
+        printf("ERROR; return code from pthread_join() is %d\n", rc);
+        exit(-1);
+      }     
+    }
+    
   }
+
+  // add_word(&word_counts, "aaaa");
+  // add_word(&word_counts, "aaaA");
+  // add_word(&word_counts, "bbb");
+  // add_word(&word_counts, "ccc");
+  // printf("len_words: %ld\n", len_words(&word_counts));
+  // printf("find_word: %d\n", (find_word(&word_counts, "bbb"))->count);
+
 
   /* Output final result of all threads' work. */
   wordcount_sort(&word_counts, less_count);
   fprint_words(&word_counts, stdout);
   return 0;
 }
+
