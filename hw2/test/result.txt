@@ -1,0 +1,2 @@
+read size: 26
+669 shell.c
