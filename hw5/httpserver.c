@@ -18,6 +18,9 @@
 #include "libhttp.h"
 #include "wq.h"
 
+#define LISTEN_BACKLOG 1024
+#define PROXY_BUFF 1000
+
 /*
  * Global configuration variables.
  * You need to use these in your implementation of handle_files_request and
@@ -30,6 +33,18 @@ int server_port;  // Default value: 8000
 char *server_files_directory;
 char *server_proxy_hostname;
 int server_proxy_port;
+int is_socket_closed; // proxy connection status, if one end close connection, it become 1
+
+
+/* write data in buf to fd completely */
+void write_complete(int fd, void *buf, ssize_t size) {
+  ssize_t write_size;
+  write_size = write(fd, buf, size);
+  while (write_size < size)
+  {
+    write_size += write(fd, buf + write_size, size - write_size);
+  } 
+}
 
 /*
  * Serves the contents the file stored at `path` to the client socket `fd`.
@@ -39,12 +54,41 @@ void serve_file(int fd, char *path) {
 
   /* TODO: PART 2 */
   /* PART 2 BEGIN */
+  const int read_buf_size = 100;
+  char read_buf[read_buf_size];
+  ssize_t read_size;
+  struct stat file_info;
+  char content_length[50];
+  long long file_size;
+  int file_fd;
 
+  /* open file */
+  if ((file_fd = open(path, O_RDONLY)) == -1)
+  {
+    perror("failed to open file");
+  }
+  
+  /* get the file size in byte to content_length */
+  stat(path, &file_info);
+  file_size = (long long)file_info.st_size;
+  snprintf(content_length, 50, "%lld", file_size);
+
+  /* response header */
   http_start_response(fd, 200);
   http_send_header(fd, "Content-Type", http_get_mime_type(path));
-  http_send_header(fd, "Content-Length", "0"); // TODO: change this line too
+  http_send_header(fd, "Content-Length", content_length); // TODO: change this line too
   http_end_headers(fd);
 
+  /* response body */
+  read_size = read(file_fd, read_buf, read_buf_size);
+  while (read_size != 0 && read_size != -1)
+  {
+    write_complete(fd, read_buf, read_size);
+    read_size = read(file_fd, read_buf, read_buf_size);
+  }
+
+  /* close file */
+  close(file_fd);
 
   /* PART 2 END */
 }
@@ -56,18 +100,43 @@ void serve_directory(int fd, char *path) {
 
   /* TODO: PART 3 */
   /* PART 3 BEGIN */
+  DIR *dir_stream;
+  struct dirent *dir_file; 
+  char href_buf[400];
+
 
   // TODO: Open the directory (Hint: opendir() may be useful here)
+  dir_stream = opendir(path);
 
   /**
    * TODO: For each entry in the directory (Hint: look at the usage of readdir() ),
    * send a string containing a properly formatted HTML. (Hint: the http_format_href()
    * function in libhttp.c may be useful here)
    */
+  char html_head[] =  "<!DOCTYPE html>"
+                      "<html><head>"
+                      "<meta charset=\"UTF-8\" />"
+                      "<title>Select a File</title>"
+                      "</head><body>";
+  char html_tail[] =  "</body></html>";
 
+  write_complete(fd, html_head, strlen(html_head));
+  while ((dir_file = readdir(dir_stream)))
+  {
+    http_format_href(href_buf, path, dir_file->d_name);
+    write_complete(fd, href_buf, strlen(href_buf));
+  }
+  write_complete(fd, html_tail, strlen(html_tail));
+
+  closedir(dir_stream);
   /* PART 3 END */
 }
 
+void serve_404(int fd) {
+  http_start_response(fd, 404);
+  http_send_header(fd, "Content-Type", "text/html");
+  http_end_headers(fd);
+}
 
 /*
  * Reads an HTTP request from client socket (fd), and writes an HTTP response
@@ -119,11 +188,102 @@ void handle_files_request(int fd) {
    */
 
   /* PART 2 & 3 BEGIN */
+  struct stat path_info; 
+  DIR *dir_stream;
+  struct dirent *dir_file; 
+  char *index_path;
+  int is_served;
+
+  if (stat(path, &path_info) != -1) /* the file exists */
+  {
+    if (S_ISREG(path_info.st_mode)) /* regular file */
+    {
+      serve_file(fd, path);
+    } else if (S_ISDIR(path_info.st_mode))  /* directory */
+    {
+      dir_stream = opendir(path);
+      is_served = 0;
+      while ((dir_file = readdir(dir_stream)))
+      {
+        if (strcmp(dir_file->d_name, "index.html") == 0)
+        {
+          index_path = malloc(strlen(path) + 11 + 1);
+          http_format_index(index_path, path);
+          serve_file(fd, index_path);
+          is_served = 1;
+          break;
+        }    
+      }
+      if (!is_served) /* can't find index.html */
+      {
+        serve_directory(fd, path);
+      }
+      closedir(dir_stream);
+    } else
+    {
+      serve_404(fd);
+    }
+    
+  } else  /* the file doesn't exist */
+  {
+    serve_404(fd);
+  }
+  
 
   /* PART 2 & 3 END */
 
   close(fd);
   return;
+}
+
+/* client --> handler --> target
+ * argv should be a pointer to an array.
+ * *argv[0] is client fd
+ * *argv[1] is target fd
+ */
+void *ctot_handler(void *argv) {
+  int *fd = argv;
+  int client_fd = fd[0];
+  int target_fd = fd[1];
+  char buff[PROXY_BUFF];
+  ssize_t recv_size;
+
+  while (is_socket_closed == 0)
+  {
+    recv_size = recv(client_fd, buff, PROXY_BUFF, 0);
+    if (recv_size > 0)
+    {
+      write_complete(target_fd, buff, recv_size);
+    } else
+    {
+      is_socket_closed = 1;
+    }  
+  }
+  is_socket_closed = 1;
+  pthread_exit(0);
+}
+
+/* target --> handler --> client */
+void *ttoc_handler(void *argv) {
+  int *fd = argv;
+  int client_fd = fd[0];
+  int target_fd = fd[1];
+  char buff[PROXY_BUFF];
+  ssize_t recv_size;
+
+  while (is_socket_closed == 0)
+  {
+    recv_size = recv(target_fd, buff, PROXY_BUFF, 0);
+    if (recv_size > 0)
+    {
+      write_complete(client_fd, buff, recv_size);
+    } else
+    {
+      is_socket_closed = 1;
+    } 
+  }
+  is_socket_closed = 1;
+  pthread_exit(0);
 }
 
 /*
@@ -190,6 +350,27 @@ void handle_proxy_request(int fd) {
 
   /* TODO: PART 4 */
   /* PART 4 BEGIN */
+  pthread_t thread_ctot;
+  pthread_t thread_ttoc;
+  int *argv;
+
+  is_socket_closed = 0;
+  argv =(int*) malloc(2 * sizeof(int));
+  argv[0] = fd;
+  argv[1] = target_fd;
+
+  if (pthread_create(&thread_ctot, NULL, &ctot_handler, (void *)argv) != 0 || 
+      pthread_create(&thread_ttoc, NULL, &ttoc_handler, (void *)argv) != 0)
+  {
+    fprintf(stderr, "failed to create threads.\n");
+    return;
+  }
+
+  pthread_join(thread_ctot, NULL);
+  pthread_join(thread_ttoc, NULL);
+
+  close(target_fd);
+  close(fd);
 
   /* PART 4 END */
 
@@ -210,6 +391,11 @@ void *handle_clients(void *void_request_handler) {
 
   /* TODO: PART 7 */
   /* PART 7 BEGIN */
+  while (1)
+  {
+    int client_socket = wq_pop(&work_queue);
+    request_handler(client_socket);
+  }
 
   /* PART 7 END */
 }
@@ -221,10 +407,34 @@ void init_thread_pool(int num_threads, void (*request_handler)(int)) {
 
   /* TODO: PART 7 */
   /* PART 7 BEGIN */
+  /* initialize the work queue */
+  wq_init(&work_queue);
 
+  /* create threads */
+  pthread_t *threads;
+  
+  threads = (pthread_t *) malloc(num_threads * sizeof(pthread_t));
+  for (size_t i = 0; i < num_threads; i++)
+  {
+    pthread_create(threads + i, NULL, &handle_clients, request_handler);
+  }
+  
   /* PART 7 END */
 }
 #endif
+
+/* 
+ * for new thread to handle new connection
+ * arg[0] is client socket number
+ * arg[1] is request handler function
+ */
+void *thread_request_handler(void *arg) {
+  void **argv = arg;
+  int *client_socket_number = argv[0];
+  void (**request_handler)(int) = argv[1];
+  (**request_handler)(*client_socket_number);
+  pthread_exit(0);
+}
 
 /*
  * Opens a TCP stream socket on all interfaces with port number PORTNO. Saves
@@ -267,6 +477,17 @@ void serve_forever(int *socket_number, void (*request_handler)(int)) {
    */
 
   /* PART 1 BEGIN */
+  if (bind(*socket_number, (struct sockaddr*)&server_address, sizeof(struct sockaddr_in)) == -1)
+  {
+    perror("Failed to bind socket");
+    exit(errno);
+  }
+  
+  if (listen(*socket_number, LISTEN_BACKLOG) == -1)
+  {
+    perror("Failed to listen");
+    exit(errno);
+  }
 
   /* PART 1 END */
   printf("Listening on port %d...\n", server_port);
@@ -316,6 +537,22 @@ void serve_forever(int *socket_number, void (*request_handler)(int)) {
      */
 
     /* PART 5 BEGIN */
+    pid_t cpid;
+    if ((cpid = fork()) == -1)
+    {
+      perror("Failed to fork");
+    }
+
+    if (cpid == 0) /* child process */
+    {
+      close(*socket_number);
+      request_handler(client_socket_number);
+      exit(0);
+    } else
+    {
+      close(client_socket_number);
+    }
+     
 
     /* PART 5 END */
 
@@ -331,6 +568,13 @@ void serve_forever(int *socket_number, void (*request_handler)(int)) {
      */
 
     /* PART 6 BEGIN */
+    pthread_t new_thread;
+    void **arg = (void **)malloc(2 * sizeof(void *));
+    arg[0] = &client_socket_number;
+    arg[1] = &request_handler;
+    pthread_create(&new_thread, NULL, &thread_request_handler, (void *)arg);
+    pthread_join(new_thread, NULL);
+    
 
     /* PART 6 END */
 #elif POOLSERVER
@@ -343,6 +587,7 @@ void serve_forever(int *socket_number, void (*request_handler)(int)) {
      */
 
     /* PART 7 BEGIN */
+    wq_push(&work_queue, client_socket_number);
 
     /* PART 7 END */
 #endif
